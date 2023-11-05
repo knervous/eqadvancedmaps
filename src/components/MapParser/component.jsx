@@ -10,7 +10,7 @@ import { Button } from '@mui/material';
 
 const dotNetLink = 'https://dotnet.microsoft.com/en-us/download/dotnet/thank-you/runtime-desktop-5.0.17-windows-x64-installer';
 
-const version = '0.1.3';
+const version = '0.2.0';
 
 export const MapParser = () => {
   return (
