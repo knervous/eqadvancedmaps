@@ -1,29 +1,44 @@
 import { v4 } from 'uuid';
-
-
 export class SocketHandler {
   #websocket;
   #addToast;
+  #wsUrl;
+  #setSocketConnected = () => {};
+  #isConnected = false;
   callbacks = {};
   get socket() {
     return this.#websocket;
   }
-  close() {
-    this.#websocket.close();
+
+  set isConnected(val) {
+    this.#setSocketConnected(val);
+    this.#isConnected = val;
   }
-  constructor(url, addToast) {
-    this.#addToast = addToast;
-    this.#websocket = new WebSocket(`${url}/maps`);
+
+  get isConnected() {
+    return this.#isConnected;
+  }
+
+  connect() {
+    this.#websocket = new WebSocket(`${this.#wsUrl}`);
     this.connected = new Promise((res, rej) => {
-      this.#websocket.onopen = res;
+      this.#websocket.onopen = () => {
+        this.#addToast(`Successfully Connected to ${this.#wsUrl}`, {
+          appearance: 'info',
+        });
+        res();
+        this.isConnected = true;
+      };
       this.#websocket.onerror = rej;
       setTimeout(rej, 2000);
     });
       
     this.#websocket.onclose = () => {
-      addToast(`Disconnected from ${url}`, {
+      this.#addToast(`Disconnected from ${this.#wsUrl}`, {
         appearance: 'warning',
       });
+      this.isConnected = false;
+
       console.log('Disconnected'); // eslint-disable-line
     };
   
@@ -41,6 +56,14 @@ export class SocketHandler {
       
     };
   }
+  close() {
+    this.#websocket.close();
+  }
+  constructor(url, addToast, setSocketConnected) {
+    this.#addToast = addToast;
+    this.#wsUrl = `${url}/maps`;
+    this.#setSocketConnected = setSocketConnected;
+  }
   on(message, callback) {
     this.callbacks[message] = callback;
   }
@@ -51,7 +74,6 @@ export class SocketHandler {
     };
   }
   emit(message, payload, callback) {
-    // console.log('Emit', message, payload, callback); // eslint-disable-line
     let callbackId;
     if (typeof callback === 'function') {
       const id = v4();

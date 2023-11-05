@@ -12,7 +12,6 @@ import ReactDOM from 'react-dom';
 import Card from '@mui/material/Card';
 import CardActions from '@mui/material/CardActions';
 import CardContent from '@mui/material/CardContent';
-import RefreshIcon from '@mui/icons-material/Refresh';
 import { DataGrid } from '@mui/x-data-grid';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -29,12 +28,8 @@ import AccordionDetails from '@mui/material/AccordionDetails';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import {
   InputLabel,
-  MenuItem,
-  Select,
-  FormControl,
   Autocomplete,
   TextField,
-  InputAdornment,
   Typography,
   IconButton,
 } from '@mui/material';
@@ -47,7 +42,6 @@ import { Loader } from './loader';
 import './component.scss';
 import { useMemo } from 'react';
 import { useToasts } from 'react-toast-notifications';
-import Repeatable from 'react-repeatable';
 import { SocketHandler } from './socketHandler';
 import { SettingsContext } from '../Context/settings';
 import supportedZones from './supportedZones';
@@ -104,7 +98,6 @@ export const Zone = () => {
   const zoneRef = useRef();
   const canvasRef = useRef(null);
   const threeRef = useRef(null);
-  const actionPopoverRef = useRef(null);
 
   // Search Dialog
   const [searchOpen, setSearchOpen] = useState(false);
@@ -146,31 +139,10 @@ export const Zone = () => {
     flySpeed,
     setOption,
     autoConnect,
-    version,
-    token,
-    alwaysDaylight,
-    enduringBreath,
-    farFallow,
-    jumpAlways,
-    noSummon,
-    levitate,
-    notEncumbered,
-    noAnonymous,
-    noBlind,
-    noDelayedJump,
-    noFallDmg,
-    noRoot,
-    noSilence,
-    noSnare,
-    noStun,
-    seeInvisible,
-    ultravision,
-    runSpeed,
   } = options;
 
-  const [processes, setProcesses] = useState([]);
   const [socket, setSocket] = useState(null);
-  const [pendingRetry, setPendingRetry] = useState(false);
+  const [socketConnected, setSocketConnected] = useState(false);
   const [selectedProcess, setSelectedProcess] = useState(zoneViewer);
   const selectedProcessRef = useRef(null);
   const [zone, setZone] = useState(null);
@@ -179,13 +151,12 @@ export const Zone = () => {
   const [staticSpawns, setStaticSpawns] = useState([]);
   const [selectedZone, setSelectedZone] = useState(initialZone);
   const [character, setCharacter] = useState(null);
-  const [parseInfo, setParseInfo] = useState(null);
+  const [parseInfo, setParseInfo] = useState({});
   const [groupMembers, setGroupMembers] = useState([]);
   const [myTarget, setMyTarget] = useState('');
   const [chatLines, setChatLines] = useState([]);
   const [macroRunning, setMacroRunning] = useState(false);
   const cameraControls = useRef();
-  const retryRef = useRef(false);
   const zoneViewerRef = useRef(true);
   const { addToast } = useToasts();
 
@@ -193,102 +164,7 @@ export const Zone = () => {
     selectedProcessRef.current = selectedProcess;
   }, [selectedProcess]);
 
-  const getOffsets = useCallback(async () => {
-    let offsets;
-    switch (version) {
-      default:
-      case 'live': {
-        const [
-          eqgame,
-          playerclient,
-          pcClient,
-          everquest,
-          globals,
-        ] = await Promise.all(
-          [
-            'eqgame',
-            'PlayerClient',
-            'PcClient',
-            'EverQuest',
-            'Globals',
-          ].map((header) =>
-            fetch(
-              `https://raw.githubusercontent.com/macroquest/eqlib/live/${header}.h`,
-            ).then((t) => t.text()),
-          ),
-        );
-        offsets = (await import('./offsets/live')).extractLive(
-          eqgame,
-          playerclient,
-          pcClient,
-          everquest,
-          globals,
-        );
-        break;
-      }
-
-      case 'titanium': {
-        const { p99Offsets } = await import('./offsets/p99');
-        offsets = p99Offsets;
-        break;
-      }
-    }
-    return offsets;
-  }, [version]);
-
-  const sendConfig = useCallback(() => {
-    if (!socket) {
-      return;
-    }
-    socket.emit('doAction', {
-      processId: -1,
-      payload  : {
-        alwaysDaylight,
-        enduringBreath,
-        farFallow,
-        jumpAlways,
-        notEncumbered,
-        noAnonymous,
-        noBlind,
-        noDelayedJump,
-        noFallDmg,
-        noRoot,
-        noSilence,
-        noSnare,
-        noStun,
-        seeInvisible,
-        ultravision,
-        runSpeed,
-        noSummon,
-        levitate,
-      },
-      type: 'activeConfig',
-    });
-  }, [
-    socket,
-    alwaysDaylight,
-    enduringBreath,
-    farFallow,
-    jumpAlways,
-    notEncumbered,
-    noAnonymous,
-    noBlind,
-    noDelayedJump,
-    noFallDmg,
-    noRoot,
-    noSilence,
-    noSnare,
-    noStun,
-    seeInvisible,
-    runSpeed,
-    ultravision,
-    levitate,
-    noSummon
-  ]);
   const { handleDrawerOpen, handleDrawerClose, drawerOpen } = useDrawerContext();
-  const addChatLine = useCallback((line) => {
-    setChatLines((lines) => [...lines, line]);
-  }, []);
   const doConnect = async () => {
     if (socket) {
       socket.close();
@@ -296,7 +172,33 @@ export const Zone = () => {
     setSocket(null);
     let newSocket;
     try {
-      newSocket = new SocketHandler(address, addToast);
+      newSocket = new SocketHandler(address, addToast, setSocketConnected);
+      newSocket.on('parseInfo', (parseInfo) => {
+        setParseInfo(p => {
+          let name = `${parseInfo?.displayedName}`;
+          if (parseInfo.level && parseInfo.className && parseInfo.race) {
+            name = `[${parseInfo.level} ${parseInfo.className}] ${parseInfo.displayedName} (${parseInfo.race})`;
+          } else {
+            name = `[ANONYMOUS] ${parseInfo.displayedName}`;
+          }
+          const zone = supportedZones.find((z) => z.longName === parseInfo.zoneName)?.shortName;
+          const previous = p[parseInfo.displayedName] ? p[parseInfo.displayedName] : {};
+          if (previous.follow && zone?.length && selectedZone !== zone) {
+            setSelectedZone(zone);
+          }
+          return {
+            ...p,
+            [parseInfo.displayedName]: {
+              ...(previous),
+              ...parseInfo,
+              zone,
+              fullName   : name,
+              lastUpdated: new Date()
+            }
+          };
+        });
+      });
+      newSocket.connect();
       await newSocket.connected;
       setOption('autoConnect', true);
     } catch (e) {
@@ -307,170 +209,9 @@ export const Zone = () => {
       setSocket(null);
       return;
     }
-
-    if (processMode) {
-      const validationInfo = await new Promise((res) =>
-        newSocket.emit('validate', token, res),
-      );
-      if (validationInfo.IsValidated) {
-        addToast(
-          <div>
-            Successfully Connected to {address}
-            <br />
-            Features enabled: {validationInfo.Features.join(', ')}
-            <br />
-            Days Remaining: {validationInfo.DaysRemaining}
-          </div>,
-          {
-            appearance: 'info',
-          },
-        );
-      } else {
-        addToast('Invalid or expired token supplied', {
-          appearance: 'error',
-        });
-        newSocket.disconnect();
-        return;
-      }
-      sendConfig();
-
-      newSocket.emit('refreshProcesses', await getOffsets());
-      newSocket.on('chat', (message) => {
-        addChatLine(message);
-      });
-      newSocket.on('macroRunning', (running) => {
-        setMacroRunning(running);
-      });
-      newSocket.on('activeProcesses', setProcesses);
-      newSocket.on('setSpawns', (spawns) => {
-        if (zoneViewerRef.current) {
-          return;
-        }
-        setSpawns(spawns);
-      });
-
-      newSocket.on('spawn', (spawns) => {
-        if (zoneViewerRef.current) {
-          return;
-        }
-        spawns.forEach((spawn) => {
-          addToast(
-            <>
-              <span>Mob spawned: {spawn.displayedName}</span>
-              <br />
-              <Button
-                onClick={(_e) => {
-                  if (zoneRef.current) {
-                    zoneRef.current.targetObject(spawnOpen);
-                  }
-                }}
-              >
-                Camera Pan
-              </Button>
-              <Button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  newSocket.emit('doAction', {
-                    processId: selectedProcessRef.current.pid,
-                    payload  : {
-                      y: spawn.x + 0.01,
-                      z: spawn.z + 0.01,
-                      x: spawn.y + 0.01,
-                    },
-                    type: 'warp',
-                  });
-                }}
-              >
-                Warp to Target
-              </Button>
-            </>,
-            { appearance: 'info' },
-          );
-        });
-      });
-      newSocket.on('despawn', (despawns) => {
-        if (zoneViewerRef.current) {
-          return;
-        }
-        despawns.forEach((spawn) => {
-          addToast(`Mob Despawned: ${spawn.displayedName}`, {
-            appearance: 'info',
-          });
-        });
-      });
-      newSocket.on('charInfo', ({ character, zoneInfo, groupMembers }) => {
-        if (zoneViewerRef.current) {
-          return;
-        }
-        setCharacter(character);
-        setGroupMembers(groupMembers);
-        setZone(zoneInfo);
-      });
-      newSocket.on('lostProcess', async (processId) => {
-        retryRef.current = false;
-
-        function drawCenteredText(text) {
-          const canvas = canvasRef.current;
-          const ctx = canvas?.getContext?.('2d');
-          if (!ctx || !canvas) {
-            return;
-          }
-          const centerX = canvas.width / 2;
-          const centerY = canvas.height / 2;
-          ctx.clearRect(
-            0,
-            0,
-            canvasRef.current.clientWidth,
-            canvasRef.current.clientHeight,
-          );
-          ctx.font = '25px arial';
-          ctx.fillStyle = '#FFFFFF';
-          ctx.textAlign = 'center';
-
-          ctx.fillText(text, centerX, centerY + 4);
-        }
-
-        if (zoneViewerRef.current) {
-          return;
-        }
-        setSelectedProcess(null);
-        setPendingRetry(true);
-        let retries = 0;
-        while (retries < 20 && retryRef.current === false) {
-          drawCenteredText('LOADING, PLEASE WAIT...');
-          await new Promise((res) => setTimeout(res, 1500));
-          const newProcess = await new Promise((res) =>
-            newSocket.emit('checkProcess', processId, res),
-          );
-
-          if (newProcess) {
-            setSelectedProcess(newProcess);
-            setProcesses((processes) =>
-              processes.map((p) => (p.pid === newProcess.pid ? newProcess : p)),
-            );
-            break;
-          }
-          retries++;
-        }
-        drawCenteredText('');
-        retryRef.current = false;
-        setPendingRetry(false);
-      });
-    } else {
-      addToast(`Successfully Connected to ${address}`, {
-        appearance: 'info',
-      });
-
-      newSocket.emit('startParse');
-
-      newSocket.on('parseInfo', (parseInfo) => {
-        setSelectedZone(
-          supportedZones.find((z) => z.longName === parseInfo.zoneName)
-            .shortName,
-        );
-        setParseInfo(parseInfo);
-      });
-    }
+    
+   
+    
 
     setSocket(newSocket);
     setConnectionOptionsOpen(false);
@@ -480,17 +221,9 @@ export const Zone = () => {
     if (socket) {
       socket.close();
     }
-    setParseInfo(null);
+    setParseInfo({});
     setSocket(null);
   };
-  const handleRefreshProcess = useCallback(async () => {
-    if (!socket) {
-      return;
-    }
-    socket?.emit?.('refreshProcesses', await getOffsets());
-    setPendingRetry(false);
-    retryRef.current = true;
-  }, [socket, getOffsets]);
 
   const filteredSpawns = useMemo(() => {
     return selectedProcess?.zoneViewer
@@ -637,10 +370,6 @@ export const Zone = () => {
     [setDetailedSpawn, handleSpawnOpen],
   );
 
-  useEffect(() => {
-    sendConfig();
-  }, [sendConfig]);
-
   const spawnColumns = useMemo(
     () => [
       { field: 'displayedName', headerName: 'Name', width: 200 },
@@ -702,7 +431,6 @@ export const Zone = () => {
     ],
     [socket, selectedProcess?.pid],
   );
-
   return (
     <ZoneContext.Provider
       value={{
@@ -715,6 +443,7 @@ export const Zone = () => {
         chatLines,
         socket,
         selectedProcess,
+        parseInfo,
       }}
     >
       <Paper className="zone-container" elevation={1}>
@@ -758,109 +487,7 @@ export const Zone = () => {
                   </Typography>
                 </IconButton>}
                
-                <div className="overlay-buttons" style={embedded ? { top: 75 } : {}}>
-                  {(character || parseInfo) && (
-                    <Button
-                      ref={actionPopoverRef}
-                      variant="contained"
-                      onClick={() => {
-                        if (zoneRef.current) {
-                          zoneRef.current.targetObject(character);
-                        }
-
-                      }}
-                    >
-                        Jump to Me
-                    </Button>
-                  )}
-                  {
-                    [
-                      { label: '-X', prop: 'x', value: -1 },
-                      { label: '+X', prop: 'x', value: 1 },
-                      { label: '-Y', prop: 'y', value: -1 },
-                      { label: '+Y', prop: 'y', value: 1 },
-                      { label: '-Z', prop: 'z', value: -1 },
-                      { label: '+Z', prop: 'z', value: 1 },
-                    ].map(({ label, prop, value }) => character && <Repeatable
-                      repeatDelay={250} repeatInterval={32}
-                      onPress={() => {
-                        const pt = { x: character.x, y: character.y, z: character.z };
-                        pt[prop] += value * 15;
-                        socket.emit('doAction', {
-                          processId: selectedProcessRef.current.pid,
-                          payload  : {
-                            x: pt.y + 0.01,
-                            z: pt.z + 0.01,
-                            y: pt.x + 0.01
-                          },
-                          type: 'warp',
-                        });
-                      }}
-                      onHold={() => {
-                        const pt = { x: character.x, y: character.y, z: character.z };
-                        pt[prop] += value * 3;
-                        setCharacter(char => ({ ...char, ...pt }));
-                        socket.emit('doAction', {
-                          processId: selectedProcessRef.current.pid,
-                          payload  : {
-                            x: pt.y + 0.01,
-                            z: pt.z + 0.01,
-                            y: pt.x + 0.01
-                          },
-                          type: 'warp',
-                        });
-                      }}
-                    >
-                      <Button sx={{ margin: 1 }} variant="contained">
-                        {label}
-                      </Button>
-                    
-                    </Repeatable>)
-                  }
-                </div>
-
-                {processMode && (
-                  <div style={{ maxWidth: 300, minWidth: 300 }}>
-                    <FormControl fullWidth>
-                      <InputLabel id="demo-simple-select-label">
-                        {pendingRetry ? 'Attempting Reconnect...' : 'Process'}
-                      </InputLabel>
-                      <Select
-                        startAdornment={
-                          <InputAdornment position="start">
-                            <RefreshIcon
-                              sx={{ cursor: 'pointer' }}
-                              onClick={() => {
-                                handleRefreshProcess();
-                              }}
-                            />
-                          </InputAdornment>
-                        }
-                        sx={{ height: 40 }}
-                        disabled={pendingRetry}
-                        value={selectedProcess ?? ''}
-                        label="Process"
-                        displayEmpty
-                        onChange={({ target: { value } }) =>
-                          setSelectedProcess(value)
-                        }
-                      >
-                        {processes.concat(zoneViewer).map((p, i) =>
-                          p.zoneViewer ? (
-                            <MenuItem key="zv" value={p}>
-                              Zone Viewer
-                            </MenuItem>
-                          ) : (
-                            <MenuItem key={`process${i}`} value={p}>
-                              {p.characterName} - {p.longName}
-                            </MenuItem>
-                          ),
-                        )}
-                      </Select>
-                    </FormControl>
-                  </div>
-                )}
-
+        
                 {selectedProcess?.zoneViewer && (
                   <Autocomplete
                     value={
@@ -1158,7 +785,13 @@ export const Zone = () => {
                   threeRef.current.parentNode,
                 )}
               {threeRef.current && (
-                <UiOverlay rootNode={threeRef.current.parentNode} character={character} />
+                <UiOverlay
+                  camera={cameraControls}
+                  rootNode={threeRef.current.parentNode} 
+                  parseInfo={parseInfo} socket={socket} 
+                  socketConnected={socketConnected} 
+                  setZone={setSelectedZone} 
+                  setParseInfo={setParseInfo} />
               )}
             </div>
           </CardContent>

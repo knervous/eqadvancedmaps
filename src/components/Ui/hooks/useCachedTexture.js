@@ -1,9 +1,14 @@
 
 import { useEffect, useState } from 'react';
 import * as THREE from 'three';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 
+const dracoLoader = new DRACOLoader();
+dracoLoader.setDecoderConfig({ type: 'js' });
+dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
 const gltfLoader = new GLTFLoader(new THREE.LoadingManager());
+gltfLoader.setDRACOLoader(dracoLoader);
 const idbVersion = 3;
 const textureTable = 'texture';
 const textureTableData = 'data';

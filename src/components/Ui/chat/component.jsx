@@ -107,7 +107,7 @@ export const Chat = ({ rootNode }) => {
           ref={inputRef}
           size="small"
           onKeyDown={handleKeyDown}
-          class="cmd-input"
+          className="cmd-input"
           fullWidth
           id="outlined-basic"
           variant="outlined"

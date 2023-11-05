@@ -93,6 +93,11 @@ const defaultOptions = {
       show: true,
       x   : window.innerWidth - 220,
       y   : window.innerHeight - 250,
+    },
+    socketClients: {
+      show: true,
+      x   : window.innerWidth - 220,
+      y   : window.innerHeight - 250,
     }
   }
 };

@@ -26,6 +26,7 @@ export const RenderedSpawn = forwardRef(
       return model[spawn.gender] || model['2'] || 'HUM';
     }, [spawn.race, spawn.gender]);
     const [scene, setScene] = useState(null);
+    const infoRef = useRef();
     const [canView, setCanView] = useState(false);
     const [animationMixer, setAnimationMixer] = useState(null);
     const race = useRef(null);
@@ -91,7 +92,7 @@ export const RenderedSpawn = forwardRef(
         gender.current = spawn.gender;
         variation.current = spawn.variation;
         setTimeout(() => {
-          const ref = spawnRef?.current ?? defaultRef?.current;
+          const ref = infoRef.current;
           if (!ref) {
             return;
           }
@@ -105,7 +106,7 @@ export const RenderedSpawn = forwardRef(
           setAnimationMixer(animationMixer);
         }, 100);
       })();
-    }, [model, spawn.texture, canView, scene, spawn.race, spawn.gender, spawn.variation]); // eslint-disable-line
+    }, [model, spawn.texture, canView, scene, spawn.race, spawn.gender, spawn.variation, infoRef]); // eslint-disable-line
 
     const { camera } = useThree();
     const [actions, setActions] = useState({});
@@ -155,7 +156,10 @@ export const RenderedSpawn = forwardRef(
       <React.Fragment key={`spawn-${spawn.id}`}>
         <primitive
           onClick={() => setStaticIndex(i)}
-          ref={spawnRef ? spawnRef : defaultRef}
+          ref={e => {
+            infoRef.current = e;
+            spawnRef?.(e);
+          }}
           scale={[spawn.size / 3, spawn.size / 3, spawn.size / 3]}
           rotation={[0, spawn.heading, 0]}
           position={[spawn.y * -1, spawn.z, spawn.x]}

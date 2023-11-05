@@ -45,7 +45,7 @@ extend({
 const processMode =
   new URLSearchParams(window.location.search).get('mode') === 'process';
 
-const storageUrl = 'https://mqbrowser.blob.core.windows.net/zones';
+const storageUrl = 'https://eqrequiem.blob.core.windows.net/assets/zones';
 const images = ['right', 'left', 'top', 'bot', 'front', 'back'];
 
 const getImagePaths = (folder) =>
@@ -121,17 +121,13 @@ export const RenderedZone = forwardRef(
       zoneDetails = [],
       controls,
       character,
-      spawns = [],
       myTarget,
       canvasRef,
       onLoaded = () => {},
-      groupMembers,
       doTarget = () => {},
-      socket,
-      selectedProcess,
       staticSpawns,
       options,
-      parseInfo,
+      parseInfo: unfilteredParseInfo,
       spawnContextMenu = () => {}
     },
     forwardRef,
@@ -140,19 +136,16 @@ export const RenderedZone = forwardRef(
       camera,
       gl: { domElement },
     } = useThree();
-
-   
+    window.currentCamera = camera;
     const {
       showPoiLoc,
       staticSpawnColor,
       showStaticSpawnDetails,
       skybox,
-      maxTargetDisplay = 1000,
       maxPoiDisplay = 1000,
       maxStaticDisplay = 500,
       fontSize = 15,
       charColor,
-      groupColor,
       showStaticSpawnModels,
       wireframe,
       spawnWireframe,
@@ -169,47 +162,29 @@ export const RenderedZone = forwardRef(
       charAnimation,
       setAnimationList,
       cameraType,
-      cameraFollowMe,
-      followTel,
       axesHelp,
       axesSize
     } = options;
+
+    const parseInfo = useMemo(() => {
+      return Object.entries(unfilteredParseInfo).reduce((acc, [key, val]) => {
+        if (val.zone === zoneName && val.locations?.length) {
+          acc[key] = val;
+        }
+        return acc;
+      }, {});
+    }, [unfilteredParseInfo, zoneName]);
     // Skybox
     useSkybox(skybox);
-    const [originalTarget, setOriginalTarget] = useState(null);
-    const [doFollow, setDoFollow] = useState(false);
     const [target, setTarget] = useState(myTarget);
     const [staticIndex, setStaticIndex] = useState(-1);
     const [rayTarget, setRayTarget] = useState(null);
-    const prevLoc = useRef({ x: null, y: null, z: null });
 
-    const characterRef = useRef();
-    const parseRef = useRef();
+    const parseRef = useRef({});
     const raycastRef = useRef(null);
     const axesRef = useRef(null);
 
-    const followPulse = useThrottledCallback(
-      (override = false) => {
-        if (!character || !socket || (!override && !followTel)) {
-          return;
-        }
-        socket.emit('doAction', {
-          processId: selectedProcess.pid,
-          payload  : {
-            x: camera.position.z,
-            z: camera.position.y - 15,
-            y: camera.position.x * -1,
-          },
-          type: 'tel',
-        });
-      },
-      250,
-      { trailing: true },
-    );
-
-    // const zoneTexture2 = useLoader(GLTFLoader, `${storageUrl}/${zoneName}.glb`);
-
-    const [zoneTexture, pctComplete] = useCachedTexture(`${storageUrl}/${zoneName}.glb`);
+    const [zoneTexture, pctComplete] = useCachedTexture(`${storageUrl}/${zoneName}.glb.gz`);
       
     useEffect(() => {
       const listener = (e) => {
@@ -334,7 +309,6 @@ export const RenderedZone = forwardRef(
           camera.matrixWorldInverse,
         ),
       );
-      followPulse();
 
       // Axes Helper
       if (axesRef.current && axesHelp) {
@@ -386,70 +360,7 @@ export const RenderedZone = forwardRef(
         // const { geometry: { vertices: [, { x, y, z }] } } = axesRef.current;
         
       }
-      for (const spawn of spawns.filter(
-        (s) =>
-          !groupMembers.some((g) => g.displayedName === s.displayedName) &&
-          frustum.containsPoint(new THREE.Vector3(s.y * -1, s.z + 15, s.x)) &&
-          camera.position.distanceTo(
-            new THREE.Vector3(s.y * -1, s.z + 5, s.x),
-          ) < maxTargetDisplay,
-      )) {
-        const screen = worldToScreen(
-          canvasRef.current,
-          new THREE.Vector3(spawn.y * -1, spawn.z + 8, spawn.x),
-          camera,
-        );
-        let side = 1;
-        if (screen.x > canvasRef.current.width / 2) {
-          side = -1;
-        }
-        const isTarget = spawn.id === target?.id;
-        ctx.strokeStyle = '#FFFFFF';
-
-        ctx.beginPath();
-        ctx.moveTo(screen.x, screen.y);
-        ctx.lineTo(screen.x - side * 12, screen.y);
-        ctx.lineTo(screen.x - side * 60, screen.y - 40);
-        ctx.stroke();
-
-        ctx.textAlign = 'start';
-        if (side === -1) {
-          ctx.textAlign = 'end';
-        }
-
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = isTarget
-          ? `bold ${fontSize + 3}px Arial`
-          : `bold ${fontSize}px Arial`;
-        ctx.textAlign = 'center';
-        const nameWidth = ctx.measureText(spawn.displayedName).width;
-
-        ctx.fillText(
-          spawn.displayedName,
-          screen.x -
-            side * 2 -
-            side * nameWidth -
-            side * 16 +
-            (nameWidth * side) / 2,
-          screen.y - 64 + 6,
-        );
-
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = isTarget
-          ? `bold ${fontSize + 3}px Arial`
-          : `bold ${fontSize}px Arial`;
-        const level = `Level ${spawn.level} ${classes[spawn.classId] ?? ''}${spawn.spawnType === 3 || spawn.spawnType === 2 ? '\'s Corpse' : ''}`;
-
-        ctx.fillText(
-          level,
-          screen.x -
-            side * 2 -
-            side * nameWidth -
-            side * 16 +
-            (nameWidth * side) / 2,
-          screen.y - 44 + (fontSize - 13),
-        );
-      }
+     
       for (const spawnGroup of staticSpawns.filter(
         (spawnGroup) =>
           spawnGroup[0] &&
@@ -735,8 +646,19 @@ export const RenderedZone = forwardRef(
         ctx.fillStyle = color;
         ctx.font = `bold ${fontSize + 3}px Arial`;
         ctx.textAlign = 'center';
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 1;
         const nameWidth = ctx.measureText(name).width;
-
+        ctx.strokeText(
+          name,
+          screen.x -
+            side * 2 -
+            side * nameWidth -
+            side * 16 +
+            (nameWidth * side) / 2,
+          screen.y - 64 + 6,
+        );
+        ctx.fillStyle = color;
         ctx.fillText(
           name,
           screen.x -
@@ -748,6 +670,15 @@ export const RenderedZone = forwardRef(
         );
 
         ctx.font = `italic bold ${fontSize + 3}px Arial`;
+        ctx.strokeText(
+          subheader,
+          screen.x -
+            side * 2 -
+            side * nameWidth -
+            side * 16 +
+            (nameWidth * side) / 2,
+          screen.y - 41,
+        );
         ctx.fillText(
           subheader,
           screen.x -
@@ -755,33 +686,21 @@ export const RenderedZone = forwardRef(
             side * nameWidth -
             side * 16 +
             (nameWidth * side) / 2,
-          screen.y - 44,
+          screen.y - 41,
         );
       };
 
-      if (character) {
-        drawNames(
-          character,
-          `${character?.displayedName} (Me)`,
-          `Level ${character.level}  ${classes[character.classId] ?? ''}`,
-          charColor?.css?.backgroundColor,
-          charSize
-        );
-      }
-      for (const groupMember of groupMembers) {
-        drawNames(
-          groupMember,
-          `${groupMember?.displayedName} (Group)`,
-          `Level ${groupMember.level}  ${classes[groupMember.classId] ?? ''}`,
-          groupColor?.css?.backgroundColor,
-        );
-      }
 
-      if (parseInfo?.locations?.[0]) {
-        const loc = parseInfo?.locations?.[0];
+      for (const parseInfoEntry of Object.values(parseInfo)) {
+        const loc = parseInfoEntry?.locations?.[0];
+        if (!frustum.containsPoint(
+          new THREE.Vector3(loc.y * -1, loc.z + 15, loc.x),
+        )) {
+          continue;
+        }
         drawNames(
           loc,
-          `${parseInfo?.displayedName}`,
+          parseInfoEntry.fullName,
           `(${loc.y}, ${loc.x}, ${loc.z})`,
           charColor?.css?.backgroundColor,
           charSize
@@ -790,6 +709,7 @@ export const RenderedZone = forwardRef(
     });
 
     useEffect(() => {
+      return;
       if (myTarget) {
         setTarget(myTarget);
         setTimeout(() => {
@@ -814,7 +734,7 @@ export const RenderedZone = forwardRef(
     const charRef = useRef(null);
     charRef.current = character;
 
-    const targetObject = useCallback((obj = charRef?.current || character || parseInfo?.locations?.[0]) => {
+    const targetObject = useCallback((obj = charRef?.current || character) => {
       if (!zoneTexture?.scene) {
         return;
       }
@@ -831,151 +751,60 @@ export const RenderedZone = forwardRef(
           charPosition.z,
         );
         camera.position.set(lookPosition.x, lookPosition.y, lookPosition.z);
-        controls.current.target?.copy?.(charPosition);
-        camera.lookAt(charPosition);
+        // controls?.current?.target?.copy?.(charPosition);
+        // camera?.lookAt?.(charPosition);
       }, 0);
-    }, [zoneTexture, character, parseInfo]) //eslint-disable-line
+    }, [zoneTexture, character]) //eslint-disable-line
 
     useEffect(() => {
-      targetObject();
+      // targetObject();
       if (zoneTexture) {
         onLoaded();
       }
     }, [zoneTexture]) //eslint-disable-line
 
-    //
+
     useEffect(() => {
       if (controls.current?.reset) {
         controls.current.reset();
       }
     }, [zoneName, controls]);
-    window.cam = camera;
+
     useEffect(() => {
-      if (!(character || parseRef.current) || !doFollow) {
-        return;
-      }
-      if (parseRef.current) {
-        const [first, second] = parseInfo.locations;
+      const followedInfo = Object.values(parseRef.current).find(a => 
+        a.parseInfoEntry?.follow
+      );
+      if (followedInfo) {
+        const { parseInfoEntry, e } = followedInfo;
+        const [first, second] = parseInfoEntry.locations;
         if (first && second && cameraType === 'fly') {
           const nextLoc = new THREE.Vector3(second.y * -1, second.z, second.x);
           const myLoc = new THREE.Vector3(first.y * -1, first.z, first.x);
-          const heading =
-            -1 * Math.atan2(myLoc.z - nextLoc.z, myLoc.x - nextLoc.x);
-          const offset = new THREE.Vector3(0, charSize, 0);
-          camera.position.addVectors(parseRef.current.position, offset);
-          camera.rotation.set(0, heading - Math.PI / 2, 0);
+          const offset = nextLoc.sub(myLoc);
+          const oldY = camera.position.y;
+          camera.position.addVectors(e.position, offset);
+          camera.position.y = oldY;
         } else {
           const offset = new THREE.Vector3(
             0,
-            camera.position.distanceTo(parseRef.current.position),
+            camera.position.distanceTo(e.position),
             0,
           );
-          camera.position.addVectors(parseRef.current.position, offset);
+          camera.position.addVectors(e.position, offset);
         }
-      } else {
-        if (cameraType === 'fly') { 
-          const offset = new THREE.Vector3(0, charSize, 0);
-          camera.position.addVectors(characterRef.current.position, offset);
-          camera.rotation.set(0, characterRef.current.rotation.y - (Math.PI / 2), 0);
-
-        } else {
-          const offset = new THREE.Vector3(
-            0,
-            camera.position.distanceTo(characterRef.current.position),
-            0,
-          );
-          camera.position.addVectors(characterRef.current.position, offset);
-        }
-        
       }
+
     }, [
-      character,
-      doFollow,
       parseInfo,
       cameraType,
       charSize,
       camera,
-    ]) // eslint-disable-line
-
-    const followMe = (doFollow) => {
-      if (doFollow) {
-        setOriginalTarget(controls.current.target);
-        controls.current.target =
-          parseRef?.current?.position ?? characterRef?.current?.position;
-      } else {
-        controls.current.target = originalTarget;
-      }
-      setDoFollow(doFollow);
-    };
-
-    useEffect(() => {
-      if (zoneTexture?.scene && parseRef.current?.position) {
-        followMe(cameraFollowMe);
-      }
-    }, [zoneTexture?.scene, cameraFollowMe, parseInfo]); // eslint-disable-line
-
-    useEffect(() => {
-      const keyHandler = event => {
-        if (event.key === 't' && raycastRef?.current && rayTarget?.x) {
-          socket.emit('doAction', {
-            processId: selectedProcess.pid,
-            payload  : {
-              y: (rayTarget.z) + 0.01,
-              z: (rayTarget.y) + 0.01,
-              x: (rayTarget.x * -1) + 0.01,
-            },
-            type: 'warp',
-          });
-
-          setTimeout(() => {
-            targetObject();
-          }, 50);
-        }
-
-        if (event.key === 'r' && raycastRef?.current && rayTarget?.x) {
-          const y = (rayTarget.z) + 0.01;
-          const z = (rayTarget.y) + 0.01;
-          const x = (rayTarget.x * -1) + 0.01;
-          socket.emit('doAction', {
-            processId: selectedProcess.pid,
-            payload  : {
-              command: `/moveto loc ${x} ${y} ${z}`
-            },
-            type: 'command',
-          });
-        }
-      };
-      window.addEventListener('keydown', keyHandler);
-
-      return () => window.removeEventListener('keydown', keyHandler);
-    }, [rayTarget, socket, selectedProcess.pid, targetObject]);
-
-    useEffect(() => {
-
-      if (character?.x === undefined) {
-        return;
-      }
-
-      if (prevLoc.current.x !== null) {
-        const deltaX = character.x - prevLoc.current.x;
-        const deltaY = character.y - prevLoc.current.y;
-        const deltaZ = character.z - prevLoc.current.z;
-
-        const offset = new THREE.Vector3(deltaY * -1, deltaZ, deltaX);
-        camera.position.addVectors(camera.position, offset);
-      }
-
-      prevLoc.current.x = character.x;
-      prevLoc.current.y = character.y;
-      prevLoc.current.z = character.z;
-    }, [character?.x, character?.y, character?.z, camera.position]);
+    ]); 
 
 
     // Expose functions to parent
     useImperativeHandle(forwardRef, () => ({
       targetObject,
-      followMe,
-      doTel: followPulse,
     }));
 
     const renderedStaticSpawns = useMemo(
@@ -987,35 +816,39 @@ export const RenderedZone = forwardRef(
     );
 
     const locLine = useMemo(() => {
-      const locations = parseInfo?.locations?.slice?.(0, locationTrails);
-      const color = locationColor?.css?.backgroundColor;
-      if (locations?.length) {
-        const positions = [];
-        const colors = [];
-        const color2 = new THREE.Color();
-        for (const { x, y, z } of locations) {
-          positions.push(y * -1, z + 5, x);
-          colors.push(color2.r, color2.g, color2.b);
+      return Object.values(parseInfo).map(parseInfoEntry => {
+        const locations = parseInfoEntry?.locations?.slice?.(0, locationTrails);
+        const color = locationColor?.css?.backgroundColor;
+        if (locations?.length) {
+          const positions = [];
+          const colors = [];
+          const color2 = new THREE.Color();
+          for (const { x, y, z } of locations) {
+            positions.push(y * -1, z + 5, x);
+            colors.push(color2.r, color2.g, color2.b);
+          }
+          const geometry = new LineGeometry();
+          geometry.setPositions(positions);
+          geometry.setColors(colors);
+          const matLine = new LineMaterial({
+            color,
+            linewidth      : 0.01, // in world units with size attenuation, pixels otherwise
+            vertexColors   : true,
+            opacity        : locationTrailOpacity,
+            gapSize        : 2,
+            dashSize       : 3,
+            // resolution:  // to be set by renderer, eventually
+            dashed         : locationTrailDashed,
+            alphaToCoverage: true,
+          });
+          const line = new Line2(geometry, matLine);
+          line.computeLineDistances();
+          line.scale.set(1, 1, 1);
+          return line;
         }
-        const geometry = new LineGeometry();
-        geometry.setPositions(positions);
-        geometry.setColors(colors);
-        const matLine = new LineMaterial({
-          color,
-          linewidth      : 0.01, // in world units with size attenuation, pixels otherwise
-          vertexColors   : true,
-          opacity        : locationTrailOpacity,
-          gapSize        : 2,
-          dashSize       : 3,
-          // resolution:  // to be set by renderer, eventually
-          dashed         : locationTrailDashed,
-          alphaToCoverage: true,
-        });
-        const line = new Line2(geometry, matLine);
-        line.computeLineDistances();
-        line.scale.set(1, 1, 1);
-        return line;
-      }
+        return undefined;
+      }).filter(Boolean);
+      
     }, [
       parseInfo,
       locationTrails,
@@ -1023,33 +856,9 @@ export const RenderedZone = forwardRef(
       locationTrailOpacity,
       locationTrailDashed,
     ]);
-
+    window.pr = parseRef;
     return (
       <>
-        {/** Spawns */}
-        {spawns.map((s) => {
-          const color =
-            s.level - character.level > 3
-              ? 'red'
-              : s.level - character.level > 0
-                ? 'yellow'
-                : s.level - character.level > -3
-                  ? 'blue'
-                  : 'gray';
-          return (
-            <React.Fragment key={`spawn-${s.id}`}>
-              {s.primary > 0 && !(s.primary >= 140 && s.primary <= 160) ? <Item id={s.primary} position={[s.y * -1, s.z + 5, s.x - 5]} /> : null}
-              {s.offhand > 0 && !(s.primary >= 140 && s.primary <= 160) ? <Item id={s.offhand} position={[s.y * -1, s.z + 5, s.x + 5]} /> : null}
-              <mesh
-                spawn={s}
-                position={[s.y * -1, s.z + 5, s.x]}
-              >
-                <sphereBufferGeometry args={[4]} />
-                <meshStandardMaterial color={color} />
-              </mesh>
-            </React.Fragment>
-          );
-        })}
         {/** Static Spawns */}
         {renderedStaticSpawns.map((s, i) => {
           const color = staticSpawnColor?.css?.backgroundColor ?? 'blue';
@@ -1083,39 +892,7 @@ export const RenderedZone = forwardRef(
             </React.Fragment>
           );
         })}
-        {/* Our character - sword model */}
-        {character && (
-          <>
-            <RenderedSpawn
-              ref={characterRef}
-              key={'parsed-info-spawn'}
-              maxDisplay={Infinity}
-              fallback={null}
-              setAnimationList={setAnimationList}
-              spawn={{
-                ...character,
-                heading  : ((character.heading / 100) + 0.5) - Math.PI,
-                z        : character.z + charSize,
-                gender   : charGender,
-                texture  : charTexture,
-                variation: charVariation,
-                size     : charSize,
-                id       : 'parsedChar',
-                race     : characterRace,
-                animation: charAnimation,
-              }}
-            />
-            {/* Spotlight over our head */}
-            <spotLight
-              intensity={5.5}
-              angle={0.3}
-              penumbra={0.8}
-              color={'white'}
-              target={characterRef.current}
-              position={[character.y * -1, character.z + 145, character.x]}
-            />
-          </>
-        )}
+
         {/** Raycast Loc */}
         {locationRaycast && rayTarget && (
           <>
@@ -1139,9 +916,8 @@ export const RenderedZone = forwardRef(
           </>
         )}
         {/* Parsed Info */}
-        {parseInfo?.locations?.slice(0, 2).map((pi, index, arr) => {
+        {Object.values(parseInfo).map(parseInfoEntry => parseInfoEntry?.locations?.slice(0, 2).map((pi, index, arr) => {
           const loc = [pi.y * -1 - 3, pi.z + 5, pi.x + 4];
-
           if (index === 0) {
             let heading = 0;
             if (arr[index + 1]) {
@@ -1152,14 +928,15 @@ export const RenderedZone = forwardRef(
                 -1 * Math.atan2(myLoc.z - nextLoc.z, myLoc.x - nextLoc.x);
             }
             return (
-              <React.Fragment>
+              <React.Fragment key={`pi-${parseInfoEntry.displayedName}`}>
                 <RenderedSpawn
-                  ref={parseRef}
+                  ref={e => parseRef.current[parseInfoEntry.displayedName] = { parseInfoEntry, e }}
                   key={'parsed-info-spawn'}
                   maxDisplay={Infinity}
                   fallback={null}
                   setAnimationList={setAnimationList}
                   spawn={{
+                    ...parseInfoEntry,
                     ...pi,
                     heading,
                     z        : pi.z + charSize,
@@ -1173,23 +950,23 @@ export const RenderedZone = forwardRef(
                   }}
                 />
                 
-                <spotLight
+                {/* <spotLight
                   intensity={2.5}
                   angle={0.3}
                   penumbra={0.8}
                   color={'pink'}
                   target={parseRef.current}
                   position={[loc[0], loc[1] + 150, loc[2]]}
-                />
+                /> */}
                 
               </React.Fragment>
             );
           }
           return null;
-        })}
+        }))}
         {/* Our zone */}
         {zoneTexture && <primitive object={zoneTexture?.scene} />}
-        {locLine && <primitive object={locLine} />}
+        {locLine.map(l => <primitive object={l} />)}
         {axesHelp && <axesHelper ref={axesRef} args={[axesSize]} />}
       </>
     );
