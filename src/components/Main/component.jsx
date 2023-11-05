@@ -1,6 +1,5 @@
 import { useRef } from 'react';
 import { createTheme, ThemeProvider } from '@mui/material';
-import { ConfirmProvider } from 'material-ui-confirm';
 
 import { LeftDrawer } from '../LeftDrawer';
 import {
@@ -61,18 +60,16 @@ const CustomToast = ({ children, ...props }) => {
 
 export const Main = () => {
   return (
-    <ConfirmProvider>
-      <ToastProvider autoDismiss components={{ Toast: CustomToast }}>
-        <MacroProvider>
-          <SettingsProvider>
-            <ThemeProvider theme={createTheme({ palette: { mode: 'dark' } })}>
-              <div className="app">
-                <LeftDrawer />
-              </div>
-            </ThemeProvider>
-          </SettingsProvider>
-        </MacroProvider>
-      </ToastProvider>
-    </ConfirmProvider>
+    <ToastProvider autoDismiss components={{ Toast: CustomToast }}>
+      <MacroProvider>
+        <SettingsProvider>
+          <ThemeProvider theme={createTheme({ palette: { mode: 'dark' } })}>
+            <div className="app">
+              <LeftDrawer />
+            </div>
+          </ThemeProvider>
+        </SettingsProvider>
+      </MacroProvider>
+    </ToastProvider>
   );
 };

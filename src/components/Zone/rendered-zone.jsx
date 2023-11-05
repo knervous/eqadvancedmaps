@@ -21,21 +21,18 @@ import './component.scss';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass';
-import { Text } from 'troika-three-text';
-import { useThrottledCallback } from 'use-debounce';
+
 import { RenderedSpawn } from './rendered-spawn';
 
 import { LineMaterial } from '../Common/LineMaterial';
 import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry';
 import { Line2 } from 'three/examples/jsm/lines/Line2';
-import { Item } from './item';
 import { useCachedTexture } from '../Ui/hooks/useCachedTexture';
 
 extend({
   EffectComposer,
   RenderPass,
   UnrealBloomPass,
-  Text,
   PylonBufferGeometry,
   LineMaterial,
   LineGeometry,
