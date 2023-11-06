@@ -9,7 +9,7 @@ dracoLoader.setDecoderConfig({ type: 'js' });
 dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
 const gltfLoader = new GLTFLoader(new THREE.LoadingManager());
 gltfLoader.setDRACOLoader(dracoLoader);
-const idbVersion = 3;
+const idbVersion = 4;
 const textureTable = 'texture';
 const textureTableData = 'data';
 
