@@ -90,7 +90,7 @@ export const MapParser = () => {
                 Multi-User Support: Host
               </Typography>
               <Typography className="map-parser-installation-steps" sx={{ fontSize: 18 }} gutterBottom component="div">
-               1. If you are the host, you will need to open config.ini and change the value to HOST=true. Start AdvancedMapParser.exe and ensure <br/> 
+               1. If you are the host, you will need to open config.ini and change the value to HOST=true. Start AdvancedMapParser.exe and ensure the console prints "You are configured as a host...etc." <br/> 
                2. Chances are if you are using a LAN, you will need to enable port forwarding for the specific machine you're hosting on. This looks different depending on hardware, but is configured
                through the router. <Link target='_blank' href="https://www.linksys.com/sa/support-article/?articleNum=138535">Here</Link> is an example of settings on a Linksys router. Whatever port you choose (9004) 
                by default will need to be forwarded to your machine.<br/> 
