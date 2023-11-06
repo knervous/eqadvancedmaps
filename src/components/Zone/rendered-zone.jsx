@@ -773,6 +773,9 @@ export const RenderedZone = forwardRef(
       );
       if (followedInfo) {
         const { parseInfoEntry, e } = followedInfo;
+        if (!parseInfoEntry?.locations?.length || !e?.position) {
+          return;
+        }
         const [first, second] = parseInfoEntry.locations;
         if (first && second && cameraType === 'fly') {
           const nextLoc = new THREE.Vector3(second.y * -1, second.z, second.x);
