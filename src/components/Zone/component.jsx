@@ -156,6 +156,7 @@ export const Zone = () => {
   const [myTarget, setMyTarget] = useState('');
   const [chatLines, setChatLines] = useState([]);
   const [macroRunning, setMacroRunning] = useState(false);
+  const [showParserUi, setShowParserUi] = useState(false);
   const cameraControls = useRef();
   const zoneViewerRef = useRef(true);
   const { addToast } = useToasts();
@@ -200,6 +201,7 @@ export const Zone = () => {
       });
       newSocket.connect();
       await newSocket.connected;
+      setShowParserUi(true);
       setOption('autoConnect', true);
     } catch (e) {
       console.warn('Socket connection failed', e);
@@ -784,7 +786,7 @@ export const Zone = () => {
                   ></canvas>,
                   threeRef.current.parentNode,
                 )}
-              {threeRef.current && (
+              {threeRef.current && showParserUi && (
                 <UiOverlay
                   camera={cameraControls}
                   rootNode={threeRef.current.parentNode} 

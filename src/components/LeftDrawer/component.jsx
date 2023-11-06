@@ -23,6 +23,8 @@ import { SettingsDrawer } from './settings';
 // scss
 import './component.scss';
 import { Button } from '@mui/material';
+import { MapParser } from '../MapParser/component';
+import { Contact } from '../Contact/component';
 
 const drawerWidth = 280;
 
@@ -77,11 +79,23 @@ const DrawerHeader = styled('div')(({ theme }) => ({
   justifyContent: 'flex-end',
 }));
 
+const manualRouter = () => {
+  const url = window.location.href;
+  if (url.endsWith('/parser')) {
+    return <MapParser />;
+  }
+  if (url.endsWith('/contact')) {
+    return <Contact />;
+  }
+
+  return <Zone />;
+};
+
 export const LeftDrawer = () => {
   const theme = useTheme();
   const [open, setOpen] = React.useState(false);
   const [title, setTitle] = useState('Advanced Map');
-  const [content, setContent] = useState(<Zone />);
+  const [content, setContent] = useState(manualRouter());
   
   const handleDrawerOpen = (type) => () => {
     setOpen(type);

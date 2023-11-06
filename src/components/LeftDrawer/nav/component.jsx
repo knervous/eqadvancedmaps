@@ -23,11 +23,9 @@ const processMode = new URLSearchParams(window.location.search).get('mode') === 
 export const NavDrawer = ({ handleDrawerClose, setTitle, setContent }) => {
   return <List>
     {[
-      ['Character', <AccessibilityIcon />, Character, !processMode],
       ['Advanced Map', <HouseIcon />, Zone, false],
       ['Advanced Map Parser', <img src="/img/icon.png" width={25} height={25} alt='icon' />, MapParser, false],
       ['Contact', <ContactMailIcon />, Contact, false],
-      ['Group', <GroupIcon />, Group, !processMode],
     ].map(([text, icon, Content, disabled]) => disabled ? null : (
       <ListItem
         disabled={disabled}

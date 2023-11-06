@@ -96,7 +96,7 @@ const defaultOptions = {
     },
     socketClients: {
       show: true,
-      x   : window.innerWidth - 220,
+      x   : (window.innerWidth / 2) - 120,
       y   : window.innerHeight - 250,
     }
   }
